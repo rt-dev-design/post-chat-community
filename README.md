@@ -4,6 +4,17 @@
 
 这是一个带帖子和聊天的社区原型系统
 
+界面
+
+<table>
+  <tr>
+    <td><img src="doc/img/00-访客-主页.jpg" width="400"></td>
+    <td><img src="doc/img/20-聊天.jpg" width="400"></td>
+  </tr>
+</table>
+
+架构
+
 ![系统整体架构图](doc/img/系统架构图.jpg)
 
 ## 其中即时通信模块的设计和实现
