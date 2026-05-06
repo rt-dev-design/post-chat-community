@@ -43,10 +43,12 @@ const actions = {
         if (state.enableStompMessageAppending) {
             logMessages("message.js", "append to messages", message);
             commit('appendOneToMessages', message);
+            return true;
         } 
         else {
             logMessages("message.js", "append to buffer", message);
             commit('appendOneToBuffer', message);
+            return false;
         }
     },
     async refreshMessagePageData(
@@ -61,12 +63,20 @@ const actions = {
             commit('setTheOtherUser', user);
             commit('setChatId', chatId);
             
-            const messagesResponse = await dispatch('fetchMessages');
-            commit('prependMessages', messagesResponse.records);
-            if (messagesResponse.records[0].createTime) 
-                commit('setBeforeTime', messagesResponse.records[0].createTime);
-            logMessages("message.js", "beforetime after request", messagesResponse.records[0], state.messagesRequest.beforeTime);
-            return messagesResponse;
+            commit('setEnableStompMessageAppending', false);
+            try {
+                const messagesResponse = await dispatch('fetchMessages');
+                const records = messagesResponse && messagesResponse.records ? messagesResponse.records : [];
+                commit('prependMessages', records);
+                if (records[0] && records[0].createTime) 
+                    commit('setBeforeTime', records[0].createTime);
+                logMessages("message.js", "beforetime after request", records[0], state.messagesRequest.beforeTime);
+                return messagesResponse;
+            }
+            finally {
+                dispatch('flushStompMessageBuffer');
+                commit('setEnableStompMessageAppending', true);
+            }
         } 
         catch(error) {
             logMessages("message.js", "refreshMessagePage error", error);
@@ -79,20 +89,25 @@ const actions = {
             else 
                 commit('setBeforeTime', state.messages[0].createTime);
         }
+        commit('setEnableStompMessageAppending', false);
         try {
             const messagesResponse = await dispatch('fetchMessages');
-            if (messagesResponse.records[0].createTime) 
-                commit('setBeforeTime', messagesResponse.records[0].createTime);
-            logMessages("message.js", "beforetime after request", messagesResponse.records[0], state.messagesRequest.beforeTime);
-            commit('prependMessages', messagesResponse.records);
+            const records = messagesResponse && messagesResponse.records ? messagesResponse.records : [];
+            if (records[0] && records[0].createTime) 
+                commit('setBeforeTime', records[0].createTime);
+            logMessages("message.js", "beforetime after request", records[0], state.messagesRequest.beforeTime);
+            commit('prependMessages', records);
             return messagesResponse;
         } 
         catch(error) {
             logMessages("message.js", "fetchMoreOnPullDown error", error);
         }
+        finally {
+            dispatch('flushStompMessageBuffer');
+            commit('setEnableStompMessageAppending', true);
+        }
     },
     async fetchMessages({ state, commit, dispatch }) {
-        commit('setEnableStompMessageAppending', false);
         try {
             // 这里的DTO是MessageQueryRequest
             const response = await uni.$H.post('/api/message/message-vos-page', {
@@ -106,14 +121,22 @@ const actions = {
         catch(error) {
             logMessages("message.js", "fetchMessages error", error);
         } 
-        finally {
-            const toAppend = state.stompMessageBuffer.filter((e) => {
-                return e.recipientId === state.thisUser.id && e.senderId === state.theOtherUser.id;
-            })
-            logMessages("message.js", "stomp buffer", state.stompMessageBuffer, "toAppend",toAppend);
-            commit('appendMessages', toAppend);
-            commit('setEnableStompMessageAppending', true);
-        }
+    },
+    flushStompMessageBuffer({ state, commit }) {
+        const toAppend = state.stompMessageBuffer.filter((e) => {
+            const senderId = e.senderId ? e.senderId.toString() : null;
+            const recipientId = e.recipientId ? e.recipientId.toString() : null;
+            const thisUserId = state.thisUser && state.thisUser.id ? state.thisUser.id.toString() : null;
+            const theOtherUserId = state.theOtherUser && state.theOtherUser.id ? state.theOtherUser.id.toString() : null;
+            return (
+                senderId === theOtherUserId && recipientId === thisUserId
+            ) || (
+                senderId === thisUserId && recipientId === theOtherUserId
+            );
+        });
+        logMessages("message.js", "stomp buffer", state.stompMessageBuffer, "toAppend", toAppend);
+        commit('appendMessages', toAppend);
+        commit('setStompMessageBuffer', []);
     },
     clearMessagePageData({ state, commit, dispatch }) {
         commit('setThisUser', uni.getStorageSync('user'));

@@ -3,7 +3,7 @@ import logMessages from '../utils/logmessages.js';
 import store from '../store/index.js';
 import JSONbig from 'json-bigint';
 
-const onMessage = (message) => {
+const onMessage = async (message) => {
     const data = JSONbig.parse(message.body);
     if (store.state.trackUser.userIsCurrentlyOnPage === 'others') {
         store.dispatch('setTabbarLabelToTrue');
@@ -16,8 +16,10 @@ const onMessage = (message) => {
             store.dispatch('setTabbarLabelToTrue');
         } 
         else {
-            store.dispatch('appendMessageFromStompConnection', data);
-            store.dispatch('toggleScrollSwitch');
+            const appended = await store.dispatch('appendMessageFromStompConnection', data);
+            if (appended) {
+                store.dispatch('toggleScrollSwitch');
+            }
         }
     }
 };
