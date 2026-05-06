@@ -148,7 +148,7 @@ const mutations = {
         state.messages.push(message)
     },
     appendOneToBuffer: (state, message) => {
-        state.messages.push(message)
+        state.stompMessageBuffer.push(message)
     },
     setEnableStompMessageAppending: (state, toSet) => {
         state.enableStompMessageAppending = toSet;
